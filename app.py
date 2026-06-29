@@ -14,7 +14,10 @@ from storage import (
 app = FastAPI(title="Capital Multiplier V3")
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
+
+PERSONAL_CHAT_ID = os.getenv("CHAT_ID")
+
+SEARBAZAAR_FOLLOWERS = os.getenv("SEARBAZAAR_FOLLOWERS")
 
 
 # ==========================================
