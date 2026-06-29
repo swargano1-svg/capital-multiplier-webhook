@@ -48,29 +48,41 @@ def send_telegram(message: str):
 
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
-    try:
+    chat_ids = []
 
-        response = requests.post(
-            url,
-            json={
-                "chat_id": CHAT_ID,
-                "text": message
-            },
-            timeout=10
-        )
+    if PERSONAL_CHAT_ID:
+        chat_ids.append(PERSONAL_CHAT_ID)
 
-        print("=" * 40)
-        print("TELEGRAM RESPONSE")
-        print("Status Code :", response.status_code)
-        print("Response    :", response.text)
-        print("=" * 40)
+    if SEARBAZAAR_FOLLOWERS:
+        chat_ids.append(SEARBAZAAR_FOLLOWERS)
 
-    except Exception as e:
+    for chat_id in chat_ids:
 
-        print("=" * 40)
-        print("TELEGRAM ERROR")
-        print(e)
-        print("=" * 40)
+        try:
+
+            response = requests.post(
+                url,
+                json={
+                    "chat_id": chat_id,
+                    "text": message
+                },
+                timeout=10
+            )
+
+            print("=" * 40)
+            print("TELEGRAM RESPONSE")
+            print("Chat ID     :", chat_id)
+            print("Status Code :", response.status_code)
+            print("Response    :", response.text)
+            print("=" * 40)
+
+        except Exception as e:
+
+            print("=" * 40)
+            print("TELEGRAM ERROR")
+            print("Chat ID :", chat_id)
+            print(e)
+            print("=" * 40)
 
 # ==========================================
 # Helpers
