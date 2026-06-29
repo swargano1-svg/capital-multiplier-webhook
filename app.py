@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request
 import os
 import requests
 from datetime import datetime
@@ -21,7 +21,6 @@ def home():
 
 
 def send_telegram(message: str):
-
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
     requests.post(
@@ -37,25 +36,27 @@ def send_telegram(message: str):
 @app.post("/webhook")
 async def webhook(request: Request):
 
-    secret = request.headers.get("X-Webhook-Secret")
+    # DEBUG
+    headers = dict(request.headers)
 
-    if WEBHOOK_SECRET:
-
-        if secret != WEBHOOK_SECRET:
-            raise HTTPException(status_code=401, detail="Invalid Secret")
+    print("========== HEADERS ==========")
+    print(headers)
+    print("=============================")
 
     data = await request.json()
 
+    print("========== PAYLOAD ==========")
     print(data)
+    print("=============================")
 
     ist = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%d-%m-%Y %I:%M:%S %p")
 
     message = f"""
-📢 FYERS Alert
+📢 FYERS Webhook Received
 
-Time : {ist}
+🕒 Time : {ist}
 
-Payload
+Payload:
 
 {data}
 """
