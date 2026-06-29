@@ -45,22 +45,29 @@ def send_telegram(message: str):
 
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
-    requests.post(
+    try:
 
-        url,
+        response = requests.post(
+            url,
+            json={
+                "chat_id": CHAT_ID,
+                "text": message
+            },
+            timeout=10
+        )
 
-        json={
+        print("=" * 40)
+        print("TELEGRAM RESPONSE")
+        print("Status Code :", response.status_code)
+        print("Response    :", response.text)
+        print("=" * 40)
 
-            "chat_id": CHAT_ID,
+    except Exception as e:
 
-            "text": message
-
-        },
-
-        timeout=10
-
-    )
-
+        print("=" * 40)
+        print("TELEGRAM ERROR")
+        print(e)
+        print("=" * 40)
 
 # ==========================================
 # Helpers
