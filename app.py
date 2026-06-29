@@ -335,8 +335,25 @@ Capital Multiplier"""
     # OTHER EVENTS
     # ==========================================
 
-    print("Ignored Event")
+    print("=" * 50)
+    print("IGNORED EVENT")
+    print("=" * 50)
+
+    print("Webhook Received :", current_time())
+
+    print("Order ID         :", data.get("id"))
+    print("Report Type      :", data.get("report_type"))
+    print("Status           :", data.get("status"))
+    print("Side             :", data.get("side"))
+    print("Message          :", data.get("message"))
+    print("Order Time       :", data.get("orderDateTime"))
+    print("Update Time      :", data.get("orderUpdateTime"))
+    print("Symbol           :", data.get("symbol"))
+
+    print("Full Payload")
     print(data)
+
+    print("=" * 50)
 
     return {
         "ignored": True
