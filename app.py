@@ -307,57 +307,57 @@ Capital Multiplier"""
 
     elif message == "rejected":
 
-    print(">>> REJECTED BLOCK EXECUTED <<<")
-
-    display_reason = reason
-
-    if "Margin Shortfall" in reason:
-        display_reason = "Insufficient Trading Margin"
-
-    elif "system square off" in reason.lower():
-        display_reason = "Trading session has ended."
-
-    elif "market closed" in reason.lower():
-        display_reason = "Market is closed."
-
-    elif "mis" in reason.lower():
-        display_reason = "MIS orders are not allowed at this time."
-
-    elif "rms" in reason.lower():
-        display_reason = "Order rejected by Risk Management."
-
-    elif "freeze" in reason.lower():
-        display_reason = "Order quantity exceeds exchange limit."
-
-    elif "fund" in reason.lower():
-        display_reason = "Insufficient Trading Margin"
-
-    elif "margin" in reason.lower():
-        display_reason = "Insufficient Trading Margin"
-
-    else:
-        display_reason = "Order could not be executed."
-
-    send_telegram(
-f"""{line()}
-
-❌ ORDER REJECTED
-
-📈 Symbol : {symbol}
-
-Reason
-
-{display_reason}
-
-🕒 {ist}
-
-{line()}
-Capital Multiplier"""
-    )
-
-    return {
-        "success": True
-    }
+        print(">>> REJECTED BLOCK EXECUTED <<<")
+    
+        display_reason = reason
+    
+        if "Margin Shortfall" in reason:
+            display_reason = "Insufficient Trading Margin"
+    
+        elif "system square off" in reason.lower():
+            display_reason = "Trading session has ended."
+    
+        elif "market closed" in reason.lower():
+            display_reason = "Market is closed."
+    
+        elif "mis" in reason.lower():
+            display_reason = "MIS orders are not allowed at this time."
+    
+        elif "rms" in reason.lower():
+            display_reason = "Order rejected by Risk Management."
+    
+        elif "freeze" in reason.lower():
+            display_reason = "Order quantity exceeds exchange limit."
+    
+        elif "fund" in reason.lower():
+            display_reason = "Insufficient Trading Margin"
+    
+        elif "margin" in reason.lower():
+            display_reason = "Insufficient Trading Margin"
+    
+        else:
+            display_reason = "Order could not be executed."
+    
+        send_telegram(
+    f"""{line()}
+    
+    ❌ ORDER REJECTED
+    
+    📈 Symbol : {symbol}
+    
+    Reason
+    
+    {display_reason}
+    
+    🕒 {ist}
+    
+    {line()}
+    Capital Multiplier"""
+        )
+    
+        return {
+            "success": True
+        }
 
     # ==========================================
     # CANCELLED
