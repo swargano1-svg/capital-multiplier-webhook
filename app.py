@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 import os
 import requests
 from datetime import datetime
@@ -8,9 +8,7 @@ app = FastAPI(title="Capital Multiplier Webhook")
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-
-# Symbol wise Entry Storage
-entries = {}
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
 
 
 @app.get("/")
@@ -39,125 +37,31 @@ def send_telegram(message: str):
 @app.post("/webhook")
 async def webhook(request: Request):
 
+    secret = request.headers.get("X-Webhook-Secret")
+
+    if WEBHOOK_SECRET:
+
+        if secret != WEBHOOK_SECRET:
+            raise HTTPException(status_code=401, detail="Invalid Secret")
+
     data = await request.json()
 
     print(data)
 
-    symbol = data.get("symbol", "")
-    symbol = symbol.replace("NSE:", "").replace("-EQ", "")
+    ist = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%d-%m-%Y %I:%M:%S %p")
 
-    side = data.get("side")
-    status = data.get("status")
-    message = data.get("message", "")
-    reason = data.get("omsMessage", "")
-    price = float(data.get("tradedPrice", 0))
+    message = f"""
+📢 FYERS Alert
 
-    ist = datetime.now(
-        ZoneInfo("Asia/Kolkata")
-    ).strftime("%d-%m-%Y %I:%M:%S %p")
+Time : {ist}
 
-    # -------------------------
-    # BUY EXECUTED
-    # -------------------------
-    if status == 2 and side == 1:
+Payload
 
-        entries[symbol] = price
+{data}
+"""
 
-        send_telegram(
-f"""🟢 BUY EXECUTED
+    send_telegram(message)
 
-📈 Symbol : {symbol}
-
-💰 Entry : ₹{price:.2f}
-
-🕒 {ist}
-
-━━━━━━━━━━━━━━
-Capital Multiplier"""
-        )
-
-    # -------------------------
-    # SELL EXECUTED
-    # -------------------------
-    elif status == 2 and side == -1:
-
-        entry = entries.get(symbol)
-
-        if entry:
-
-            profit = ((price - entry) / entry) * 100
-
-            emoji = "🟢" if profit >= 0 else "🔴"
-
-            send_telegram(
-f"""🔴 SELL EXECUTED
-
-📈 Symbol : {symbol}
-
-💰 Entry : ₹{entry:.2f}
-💰 Exit  : ₹{price:.2f}
-
-{emoji} Profit : {profit:.2f}%
-
-🕒 {ist}
-
-━━━━━━━━━━━━━━
-Capital Multiplier"""
-            )
-
-            entries.pop(symbol, None)
-
-        else:
-
-            send_telegram(
-f"""🔴 SELL EXECUTED
-
-📈 Symbol : {symbol}
-
-💰 Exit : ₹{price:.2f}
-
-⚠ Entry Price Not Found
-
-🕒 {ist}
-
-━━━━━━━━━━━━━━
-Capital Multiplier"""
-            )
-
-    # -------------------------
-    # REJECTED
-    # -------------------------
-    elif message.lower() == "rejected":
-
-        send_telegram(
-f"""❌ ORDER REJECTED
-
-📈 Symbol : {symbol}
-
-Reason
-
-{reason}
-
-🕒 {ist}
-
-━━━━━━━━━━━━━━
-Capital Multiplier"""
-        )
-
-    # -------------------------
-    # CANCELLED
-    # -------------------------
-    elif message.lower() == "cancelled":
-
-        send_telegram(
-f"""⚠ ORDER CANCELLED
-
-📈 Symbol : {symbol}
-
-🕒 {ist}
-
-━━━━━━━━━━━━━━
-Capital Multiplier"""
-        )
-
-    return {"success": True}
+    return {
+        "success": True
+    }
