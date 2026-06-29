@@ -4,67 +4,185 @@ import requests
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-app = FastAPI(title="Capital Multiplier Webhook")
+from storage import (
+    save_trade,
+    get_trade,
+    delete_trade,
+    is_duplicate
+)
+
+app = FastAPI(title="Capital Multiplier V3")
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-# Symbol wise Entry Storage
-entries = {}
 
+# ==========================================
+# Home
+# ==========================================
 
 @app.get("/")
 def home():
+
     return {
+
         "status": "running",
+
+        "version": "V3",
+
         "project": "Capital Multiplier",
+
         "broker": "FYERS"
+
     }
 
+
+# ==========================================
+# Telegram
+# ==========================================
 
 def send_telegram(message: str):
 
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
     requests.post(
+
         url,
+
         json={
+
             "chat_id": CHAT_ID,
+
             "text": message
+
         },
+
         timeout=10
+
     )
 
+
+# ==========================================
+# Helpers
+# ==========================================
+
+def clean_symbol(symbol):
+
+    return symbol.replace("NSE:", "").replace("-EQ", "")
+
+
+def current_time():
+
+    return datetime.now(
+
+        ZoneInfo("Asia/Kolkata")
+
+    ).strftime("%d-%m-%Y %I:%M:%S %p")
+
+
+def line():
+
+    return "━━━━━━━━━━━━━━━━━━━━"
+
+
+# ==========================================
+# Webhook
+# ==========================================
 
 @app.post("/webhook")
 async def webhook(request: Request):
 
     data = await request.json()
 
+    print("=" * 30)
+    print("PAYLOAD")
     print(data)
+    print("=" * 30)
 
-    symbol = data.get("symbol", "")
-    symbol = symbol.replace("NSE:", "").replace("-EQ", "")
+    order_id = str(data.get("id", ""))
+
+    if order_id:
+
+        if is_duplicate(order_id):
+
+            print("Duplicate Order Ignored")
+
+            return {
+
+                "duplicate": True
+
+            }
+
+    symbol = clean_symbol(
+
+        data.get("symbol", "")
+
+    )
 
     side = data.get("side")
+
     status = data.get("status")
-    message = data.get("message", "")
-    reason = data.get("omsMessage", "")
-    price = float(data.get("tradedPrice", 0))
 
-    ist = datetime.now(
-        ZoneInfo("Asia/Kolkata")
-    ).strftime("%d-%m-%Y %I:%M:%S %p")
+    message = str(
 
-    # -------------------------
+        data.get("message", "")
+
+    ).lower()
+
+    reason = data.get(
+
+        "omsMessage", ""
+
+    )
+
+    price = float(
+
+        data.get("tradedPrice", 0)
+
+    )
+
+    ist = current_time()
+    # ==========================================
     # BUY EXECUTED
-    # -------------------------
+    # ==========================================
+
     if status == 2 and side == 1:
 
-        entries[symbol] = price
+        existing_trade = get_trade(symbol)
+
+        if existing_trade:
+
+            send_telegram(
+f"""{line()}
+
+⚠ BUY IGNORED
+
+📈 Symbol : {symbol}
+
+Reason
+
+Already Active Position Exists
+
+{line()}
+Capital Multiplier"""
+            )
+
+            return {"success": True}
+
+        save_trade(
+
+            symbol,
+
+            price,
+
+            ist
+
+        )
 
         send_telegram(
-f"""🟢 BUY EXECUTED
+f"""{line()}
+
+🟢 BUY EXECUTED
 
 📈 Symbol : {symbol}
 
@@ -72,45 +190,77 @@ f"""🟢 BUY EXECUTED
 
 🕒 {ist}
 
-━━━━━━━━━━━━━━
+{line()}
 Capital Multiplier"""
         )
 
-    # -------------------------
+        return {
+
+            "success": True
+
+        }
+
+
+    # ==========================================
     # SELL EXECUTED
-    # -------------------------
+    # ==========================================
+
     elif status == 2 and side == -1:
 
-        entry = entries.get(symbol)
+        trade = get_trade(symbol)
 
-        if entry:
+        if trade:
 
-            profit = ((price - entry) / entry) * 100
+            entry = float(
 
-            emoji = "🟢" if profit >= 0 else "🔴"
+                trade["entry"]
 
+            )
+
+            entry_time = trade["entry_time"]
+
+            profit = (
+
+                (price - entry)
+
+                / entry
+
+            ) * 100
+
+            emoji = "🟢"
+
+            if profit < 0:
+
+                emoji = "🔴"
             send_telegram(
-f"""🔴 SELL EXECUTED
+f"""{line()}
+
+🔴 SELL EXECUTED
 
 📈 Symbol : {symbol}
 
 💰 Entry : ₹{entry:.2f}
-💰 Exit  : ₹{price:.2f}
+
+💰 Exit : ₹{price:.2f}
 
 {emoji} Profit : {profit:.2f}%
 
-🕒 {ist}
+🕒 Entry : {entry_time}
 
-━━━━━━━━━━━━━━
+🕒 Exit : {ist}
+
+{line()}
 Capital Multiplier"""
             )
 
-            entries.pop(symbol, None)
+            delete_trade(symbol)
 
         else:
 
             send_telegram(
-f"""🔴 SELL EXECUTED
+f"""{line()}
+
+🔴 SELL EXECUTED
 
 📈 Symbol : {symbol}
 
@@ -120,17 +270,25 @@ f"""🔴 SELL EXECUTED
 
 🕒 {ist}
 
-━━━━━━━━━━━━━━
+{line()}
 Capital Multiplier"""
             )
 
-    # -------------------------
+        return {
+            "success": True
+        }
+
+
+    # ==========================================
     # REJECTED
-    # -------------------------
-    elif message.lower() == "rejected":
+    # ==========================================
+
+    elif message == "rejected":
 
         send_telegram(
-f"""❌ ORDER REJECTED
+f"""{line()}
+
+❌ ORDER REJECTED
 
 📈 Symbol : {symbol}
 
@@ -140,24 +298,46 @@ Reason
 
 🕒 {ist}
 
-━━━━━━━━━━━━━━
+{line()}
 Capital Multiplier"""
         )
 
-    # -------------------------
+        return {
+            "success": True
+        }
+
+
+    # ==========================================
     # CANCELLED
-    # -------------------------
-    elif message.lower() == "cancelled":
+    # ==========================================
+
+    elif message == "cancelled":
 
         send_telegram(
-f"""⚠ ORDER CANCELLED
+f"""{line()}
+
+⚠ ORDER CANCELLED
 
 📈 Symbol : {symbol}
 
 🕒 {ist}
 
-━━━━━━━━━━━━━━
+{line()}
 Capital Multiplier"""
         )
 
-    return {"success": True}
+        return {
+            "success": True
+        }
+
+
+    # ==========================================
+    # OTHER EVENTS
+    # ==========================================
+
+    print("Ignored Event")
+    print(data)
+
+    return {
+        "ignored": True
+    }
