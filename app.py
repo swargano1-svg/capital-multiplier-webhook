@@ -1,163 +1,115 @@
 from fastapi import FastAPI, Request
 import os
-import requests
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-app = FastAPI(title="Capital Multiplier Webhook")
+from storage import save_trade, get_trade, delete_trade, is_duplicate
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
+app = FastAPI(title="Capital Multiplier V3")
 
-# Symbol wise Entry Storage
-entries = {}
+IST = ZoneInfo("Asia/Kolkata")
 
-
-@app.get("/")
-def home():
-    return {
-        "status": "running",
-        "project": "Capital Multiplier",
-        "broker": "FYERS"
-    }
+BOT_TOKEN = os.getenv("BOT_TOKEN", "demo_token")
 
 
-def send_telegram(message: str):
-
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-
-    requests.post(
-        url,
-        json={
-            "chat_id": CHAT_ID,
-            "text": message
-        },
-        timeout=10
-    )
+# =========================
+# HELPERS
+# =========================
+def get_time():
+    return datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
 
 
+def validate(data):
+    try:
+        return (
+            data["symbol"]
+            and data["signal"] in ["BUY", "SELL", "EXIT"]
+            and float(data["price"]) > 0
+            and data["order_id"]
+        )
+    except:
+        return False
+
+
+def verify_token(data):
+    return data.get("token") == BOT_TOKEN
+
+
+# =========================
+# CORE ENGINE
+# =========================
+def process(data):
+    symbol = data["symbol"]
+    signal = data["signal"]
+    price = float(data["price"])
+    order_id = data["order_id"]
+
+    # duplicate check
+    if is_duplicate(order_id):
+        return {"status": "DUPLICATE_IGNORED"}
+
+    # ENTRY
+    if signal in ["BUY", "SELL"]:
+        if get_trade(symbol):
+            return {"status": "ALREADY_IN_POSITION"}
+
+        save_trade(symbol, price, get_time())
+
+        return {
+            "status": "ENTERED",
+            "symbol": symbol,
+            "price": price
+        }
+
+    # EXIT
+    if signal == "EXIT":
+        trade = get_trade(symbol)
+
+        if not trade:
+            return {"status": "NO_POSITION_FOUND"}
+
+        entry = trade["entry"]
+        entry_time = trade["entry_time"]
+
+        pnl = price - entry if signal == "EXIT" else 0
+
+        if signal == "SELL":
+            pnl = entry - price
+
+        delete_trade(symbol)
+
+        return {
+            "status": "EXITED",
+            "symbol": symbol,
+            "entry": entry,
+            "exit": price,
+            "pnl": round(pnl, 2),
+            "entry_time": entry_time,
+            "exit_time": get_time()
+        }
+
+    return {"status": "NO_ACTION"}
+
+
+# =========================
+# WEBHOOK
+# =========================
 @app.post("/webhook")
 async def webhook(request: Request):
-
     data = await request.json()
 
-    print(data)
+    if not verify_token(data):
+        return {"error": "Unauthorized"}
 
-    symbol = data.get("symbol", "")
-    symbol = symbol.replace("NSE:", "").replace("-EQ", "")
+    if not validate(data):
+        return {"error": "Invalid payload"}
 
-    side = data.get("side")
-    status = data.get("status")
-    message = data.get("message", "")
-    reason = data.get("omsMessage", "")
-    price = float(data.get("tradedPrice", 0))
+    return process(data)
 
-    ist = datetime.now(
-        ZoneInfo("Asia/Kolkata")
-    ).strftime("%d-%m-%Y %I:%M:%S %p")
 
-    # -------------------------
-    # BUY EXECUTED
-    # -------------------------
-    if status == 2 and side == 1:
-
-        entries[symbol] = price
-
-        send_telegram(
-f"""🟢 BUY EXECUTED
-
-📈 Symbol : {symbol}
-
-💰 Entry : ₹{price:.2f}
-
-🕒 {ist}
-
-━━━━━━━━━━━━━━
-Capital Multiplier"""
-        )
-
-    # -------------------------
-    # SELL EXECUTED
-    # -------------------------
-    elif status == 2 and side == -1:
-
-        entry = entries.get(symbol)
-
-        if entry:
-
-            profit = ((price - entry) / entry) * 100
-
-            emoji = "🟢" if profit >= 0 else "🔴"
-
-            send_telegram(
-f"""🔴 SELL EXECUTED
-
-📈 Symbol : {symbol}
-
-💰 Entry : ₹{entry:.2f}
-💰 Exit  : ₹{price:.2f}
-
-{emoji} Profit : {profit:.2f}%
-
-🕒 {ist}
-
-━━━━━━━━━━━━━━
-Capital Multiplier"""
-            )
-
-            entries.pop(symbol, None)
-
-        else:
-
-            send_telegram(
-f"""🔴 SELL EXECUTED
-
-📈 Symbol : {symbol}
-
-💰 Exit : ₹{price:.2f}
-
-⚠ Entry Price Not Found
-
-🕒 {ist}
-
-━━━━━━━━━━━━━━
-Capital Multiplier"""
-            )
-
-    # -------------------------
-    # REJECTED
-    # -------------------------
-    elif message.lower() == "rejected":
-
-        send_telegram(
-f"""❌ ORDER REJECTED
-
-📈 Symbol : {symbol}
-
-Reason
-
-{reason}
-
-🕒 {ist}
-
-━━━━━━━━━━━━━━
-Capital Multiplier"""
-        )
-
-    # -------------------------
-    # CANCELLED
-    # -------------------------
-    elif message.lower() == "cancelled":
-
-        send_telegram(
-f"""⚠ ORDER CANCELLED
-
-📈 Symbol : {symbol}
-
-🕒 {ist}
-
-━━━━━━━━━━━━━━
-Capital Multiplier"""
-        )
-
-    return {"success": True}
+# =========================
+# HEALTH
+# =========================
+@app.get("/")
+def home():
+    return {"status": "Capital Multiplier V3 Running"}
