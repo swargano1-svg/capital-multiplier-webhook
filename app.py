@@ -306,7 +306,14 @@ Capital Multiplier"""
     # ==========================================
 
     elif message == "rejected":
+
         print(">>> REJECTED BLOCK EXECUTED <<<")
+
+        display_reason = reason
+
+        if "Margin Shortfall" in reason:
+            display_reason = "Insufficient Trading Margin"
+
         send_telegram(
 f"""{line()}
 
@@ -316,7 +323,7 @@ f"""{line()}
 
 Reason
 
-{reason}
+{display_reason}
 
 🕒 {ist}
 
