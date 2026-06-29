@@ -291,7 +291,7 @@ Capital Multiplier"""
     # ==========================================
 
     elif message == "rejected":
-
+        print(">>> REJECTED BLOCK EXECUTED <<<")
         send_telegram(
 f"""{line()}
 
